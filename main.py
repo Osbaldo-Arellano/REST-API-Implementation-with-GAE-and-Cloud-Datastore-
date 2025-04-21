@@ -9,25 +9,31 @@ def create_business():
     data = request.get_json()
     required_fields = ['owner_id', 'name', 'street_address', 'city', 'state', 'zip_code']
     if not all(field in data for field in required_fields):
-        return jsonify({'Error': 'The request body is missing one of the required fields'}), 400
+        return jsonify({'Error': 'The request body is missing at least one of the required attributes'}), 400
     
     business_key = datastore_client.key('Business')
     business = datastore.Entity(key=business_key)
     business.update(data)
     datastore_client.put(business)
+
+    # include the id in the response
     business['id'] = business.key.id
+
     return jsonify(business), 201
 
 @app.route('/businesses', methods=['GET'])
 def get_businesses():
     query = datastore_client.query(kind='Business')
     businesses = list(query.fetch())
+
+    # include the id in the response
     for business in businesses:
         business['id'] = business.key.id
+
     return jsonify(businesses), 200
 
 @app.route('/businesses/<int:business_id>', methods=['GET'])
-def get_business(business_id):
+def get_business_by_id(business_id):
     business_key = datastore_client.key('Business', business_id)
     business = datastore_client.get(business_key)
 
@@ -35,6 +41,46 @@ def get_business(business_id):
         return jsonify({'Error': 'No business with this business_id exists'}), 404
     
     return jsonify(business), 200
+
+@app.route('/businesses/<int:business_id>', methods=['PUT'])
+def edit_business(business_id):
+    data = request.get_json()
+    required_attrs = ['owner_id', 'name', 'street_address', 'city', 'state', 'zip_code']
+    if not all(attr in data for attr in required_attrs):
+        return jsonify({'Error': 'The request body is missing at least one of the required attributes'}), 400
+    
+    # Get entry from Datastore
+    business_key = datastore_client.key('Business', business_id)
+    business = datastore_client.get(business_key)
+    if not business:
+        return jsonify({'Error': 'No business with this business_id exists'}), 404
+    
+    business.update(data)
+    datastore_client.put(business)
+    
+    # include the id in the response
+    business['id'] = business_id
+    
+    return jsonify(business), 200
+
+@app.route('/businesses/<int:business_id>', methods=['DELETE'])
+def delete_business(business_id):
+    business_key = datastore_client.key('Business', business_id)
+    business = datastore_client.get(business_key)
+    if not business:
+        return jsonify({'Error': 'No business with this business_id exists'}), 404
+    
+    # Get and delete all of the business reviews 
+    query = datastore_client.query(kind='Review')
+    query.add_filter('business_id', '=', business_id)
+    reviews = query.fetch()
+    for review in reviews:
+        datastore_client.delete(review.key)
+    
+    datastore_client.delete(business_key)
+
+    # just return the status code 204 (No Content [Success])
+    return '', 204
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)
