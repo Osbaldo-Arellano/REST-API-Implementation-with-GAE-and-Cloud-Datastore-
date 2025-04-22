@@ -125,5 +125,17 @@ def create_review():
 
     return jsonify(review), 201
 
+@app.route('/reviews/<int:review_id>', methods=['GET'])
+def get_review(review_id):
+    review_key = datastore_client.key('Review', review_id)
+    review = datastore_client.get(review_key)
+
+    if not review:
+        return jsonify({'Error': 'No review with this review_id exists'}), 404
+    
+    review['id'] = review_id  
+
+    return jsonify(review), 200
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)
