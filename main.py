@@ -4,6 +4,30 @@ from google.cloud import datastore
 app = Flask(__name__)
 datastore_client = datastore.Client()
 
+def format_business_response(business):
+    return {
+        'id': business.key.id,
+        'owner_id': business['owner_id'],
+        'name': business['name'],
+        'street_address': business['street_address'],
+        'city': business['city'],
+        'state': business['state'],
+        'zip_code': business['zip_code']
+    }
+
+def format_review_response(review):
+    response = {
+        'id': review.key.id,
+        'user_id': review['user_id'],
+        'business_id': review['business_id'],
+        'stars': review['stars']
+    }
+    if 'review_text' in review:
+        response['review_text'] = review['review_text']
+    else:
+        response['review_text'] = None
+    return response
+
 @app.route('/businesses', methods=['POST'])
 def create_business():
     data = request.get_json()
@@ -19,7 +43,7 @@ def create_business():
     # include the id in the response
     business['id'] = business.key.id
 
-    return jsonify(business), 201
+    return jsonify(format_business_response(business)), 201
 
 @app.route('/businesses', methods=['GET'])
 def get_businesses():
@@ -30,7 +54,7 @@ def get_businesses():
     for business in businesses:
         business['id'] = business.key.id
 
-    return jsonify(businesses), 200
+    return jsonify(format_business_response(business)), 200
 
 @app.route('/businesses/<int:business_id>', methods=['GET'])
 def get_business_by_id(business_id):
@@ -40,7 +64,7 @@ def get_business_by_id(business_id):
     if not business:
         return jsonify({'Error': 'No business with this business_id exists'}), 404
     
-    return jsonify(business), 200
+    return jsonify(format_business_response(business)), 200
 
 @app.route('/businesses/<int:business_id>', methods=['PUT'])
 def edit_business(business_id):
@@ -61,7 +85,7 @@ def edit_business(business_id):
     # include the id in the response
     business['id'] = business_id
     
-    return jsonify(business), 200
+    return jsonify(format_business_response(business)), 200
 
 @app.route('/businesses/<int:business_id>', methods=['DELETE'])
 def delete_business(business_id):
@@ -85,14 +109,9 @@ def delete_business(business_id):
 @app.route('/owners/<int:owner_id>/businesses', methods=['GET'])
 def list_owner_businesses(owner_id):
     query = datastore_client.query(kind='Business')
-    query.add_filter(filter=('owner_id', '=', owner_id))
+    query.add_filter('owner_id', '=', owner_id)
     businesses = list(query.fetch())
-
-    # Add ID to the response
-    for buiness in businesses:
-        buiness['id'] = buiness.key.id
-
-    return jsonify(businesses), 200
+    return jsonify([format_business_response(business) for business in businesses]), 200
 
 @app.route('/reviews', methods=['POST'])
 def create_review():
@@ -136,6 +155,53 @@ def get_review(review_id):
     review['id'] = review_id  
 
     return jsonify(review), 200
+
+@app.route('/reviews/<int:review_id>', methods=['PUT'])
+def edit_review(review_id):
+    data = request.get_json()
+    if 'stars' not in data:
+        return jsonify({'Error': 'The request body is missing at least one of the required attributes'}), 400
+    
+    review_key = datastore_client.key('Review', review_id)
+    review = datastore_client.get(review_key)
+    if not review:
+        return jsonify({'Error': 'No review with this review_id exists'}), 404
+    
+    # Append 'stars' and/or 'review' to the response 
+    if 'stars' in data:
+        review['stars'] = data['stars']
+    if 'review_text' in data:
+        review['review_text'] = data['review_text']
+
+    datastore_client.put(review)
+
+    review['id'] = review_id
+
+    return jsonify(review), 200
+
+
+@app.route('/reviews/<int:review_id>', methods=['DELETE'])
+def delete_review(review_id):
+    review_key = datastore_client.key('Review', review_id)
+    review = datastore_client.get(review_key)
+
+    if not review:
+        return jsonify({'Error': 'No review with this review_id exists'}), 404
+    
+    datastore_client.delete(review_key)
+
+    return '', 204
+
+@app.route('/users/<int:user_id>/reviews', methods=['GET'])
+def list_user_reviews(user_id):
+    query = datastore_client.query(kind='Review')
+    query.add_filter('user_id', '=', user_id)
+    reviews = list(query.fetch())
+    
+    for review in reviews:
+        review['id'] = review.key.id
+
+    return jsonify(reviews), 200
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)
