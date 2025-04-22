@@ -28,23 +28,6 @@ def format_review_response(review):
         response['review_text'] = None
     return response
 
-@app.route('/', methods=['GET'])
-def index():
-    routes = {
-        'POST /businesses': 'Create a new business',
-        'GET /businesses': 'List all businesses',
-        'GET /businesses/<business_id>': 'Get a business by ID',
-        'PUT /businesses/<business_id>': 'Update a business by ID',
-        'DELETE /businesses/<business_id>': 'Delete a business and its reviews',
-        'GET /owners/<owner_id>/businesses': 'List all businesses for an owner',
-        'POST /reviews': 'Create a new review',
-        'GET /reviews/<review_id>': 'Get a review by ID',
-        'PUT /reviews/<review_id>': 'Update a review by ID',
-        'DELETE /reviews/<review_id>': 'Delete a review by ID',
-        'GET /users/<user_id>/reviews': 'List all reviews made by a user'
-    }
-    return jsonify({'available_routes': routes}), 200
-
 @app.route('/businesses', methods=['POST'])
 def create_business():
     data = request.get_json()
