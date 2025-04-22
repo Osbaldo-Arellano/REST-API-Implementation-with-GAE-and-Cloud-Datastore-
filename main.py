@@ -94,5 +94,36 @@ def list_owner_businesses(owner_id):
 
     return jsonify(businesses), 200
 
+@app.route('/reviews', methods=['POST'])
+def create_review():
+    data = request.get_json()
+    required_fields = ['user_id', 'business_id', 'stars']
+    if not all(fields in data for fields in required_fields):
+        return jsonify({'Error': 'The request body is missing at least one of the required attributes'}), 400
+    
+    business_key = datastore_client.key('Business', data['business_id'])
+    business = datastore_client.get(business_key)
+    if not business:
+        return jsonify({'Error': 'No business with this business_id exists'}), 404
+    
+    # Check if the user has already submitted a review for this business
+    query = datastore_client.query(kind='Review')
+    query.add_filter(filter=('user_id', '=', data['user_id']))
+    query.add_filter(filter=('business_id', '=', data['business_id']))
+    existing_reviews = list(query.fetch())
+    if existing_reviews:
+        return jsonify({'Error': 'You have already submitted a review for this business. You can update your previous review, or delete it and submit a new review'}), 409
+    
+    # Add review to Datastore
+    review_key = datastore_client.key('Review')
+    review = datastore.Entity(key=review_key)
+    review.update(data)
+    datastore_client.put(review)
+
+    # Add review ID to the response
+    review['id'] = review.key.id
+
+    return jsonify(review), 201
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=8080, debug=True)
