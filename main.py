@@ -54,7 +54,7 @@ def get_businesses():
     for business in businesses:
         business['id'] = business.key.id
 
-    return jsonify(format_business_response(business)), 200
+    return jsonify([format_business_response(business) for business in businesses]), 200
 
 @app.route('/businesses/<int:business_id>', methods=['GET'])
 def get_business_by_id(business_id):
@@ -117,22 +117,23 @@ def list_owner_businesses(owner_id):
 def create_review():
     data = request.get_json()
     required_fields = ['user_id', 'business_id', 'stars']
-    if not all(fields in data for fields in required_fields):
+    if not all(field in data for field in required_fields):
         return jsonify({'Error': 'The request body is missing at least one of the required attributes'}), 400
     
     business_key = datastore_client.key('Business', data['business_id'])
     business = datastore_client.get(business_key)
     if not business:
         return jsonify({'Error': 'No business with this business_id exists'}), 404
-    
-    # Check if the user has already submitted a review for this business
+
+    # Check if the user already reviewed this business
     query = datastore_client.query(kind='Review')
-    query.add_filter(filter=('user_id', '=', data['user_id']))
-    query.add_filter(filter=('business_id', '=', data['business_id']))
+    query.add_filter('user_id', '=', data['user_id'])
+    query.add_filter('business_id', '=', data['business_id'])
     existing_reviews = list(query.fetch())
+
     if existing_reviews:
         return jsonify({'Error': 'You have already submitted a review for this business. You can update your previous review, or delete it and submit a new review'}), 409
-    
+
     # Add review to Datastore
     review_key = datastore_client.key('Review')
     review = datastore.Entity(key=review_key)
@@ -144,16 +145,21 @@ def create_review():
 
     return jsonify(review), 201
 
-@app.route('/reviews/<int:review_id>', methods=['GET'])
+
+@app.route('/reviews/<review_id>', methods=['GET'])
 def get_review(review_id):
+    try:
+        review_id = int(review_id)
+    except ValueError:
+        return jsonify({'Error': 'review_id must be an integer'}), 200
+
     review_key = datastore_client.key('Review', review_id)
     review = datastore_client.get(review_key)
 
     if not review:
         return jsonify({'Error': 'No review with this review_id exists'}), 404
-    
-    review['id'] = review_id  
 
+    review['id'] = review_id
     return jsonify(review), 200
 
 @app.route('/reviews/<int:review_id>', methods=['PUT'])
